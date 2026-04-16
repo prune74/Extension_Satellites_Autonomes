@@ -30,7 +30,7 @@
 #include "EXSA_Multiplexeur.h"
 #include "EXSA_Quadrature.h"
 #include "EXSA_Essieux.h"
-#include "EXSA_Switches.h"      // ← AJOUT : sécurité aiguilles
+#include "EXSA_Switches.h"
 #include "EXSA_Config.h"
 
 #include <Arduino.h>
