@@ -6,6 +6,7 @@
    ------------------------------------------------------------
    Définition des broches physiques utilisées par l’EXSA.
    Version MCP23017 (entrées micro-switchs déportées en I²C)
+   + Section Booster Discovery 2026 (CAN natif ESP32)
    ============================================================ */
 
 /* -----------------------------
@@ -64,10 +65,6 @@
 
 /* ============================================================
    MCP23017 — Micro-switchs position réelle aiguilles
-   ------------------------------------------------------------
-   Le MCP23017 fournit 16 entrées :
-   GPA0..GPA7  → Port A
-   GPB0..GPB7  → Port B
    ============================================================ */
 
 /* Adresse I²C du MCP23017 (A0/A1/A2 = GND) */
@@ -85,5 +82,27 @@
 #define EXSA_SW2_DROIT   4   // GPA4
 #define EXSA_SW2_DEVIE   5   // GPA5
 
-/* Optionnel : broche d'interruption du MCP23017 */
-#define EXSA_MCP23017_INT_PIN  4   // GPIO4 (au choix)
+/* Broche d'interruption du MCP23017 (sans doublon, GPIO “neutre”) */
+#define EXSA_MCP23017_INT_PIN  17   // GPIO17
+
+/* ============================================================
+   Section Booster Discovery 2026
+   ------------------------------------------------------------
+   DRV8801 + PWM DCC + ADC RailCom + CAN Booster (natif)
+   ============================================================ */
+
+/* --- DRV8801 --- */
+#define EXSA_DRV_ENABLE      19   // GPIO → ENABLE DRV8801
+#define EXSA_DRV_PHASE       21   // GPIO → PHASE (sens voie)
+#define EXSA_DRV_FAULT       22   // GPIO → FAULT (entrée)
+
+/* --- PWM DCC --- */
+#define EXSA_DCC_PIN         23   // GPIO → PWM DCC (LEDC canal 0)
+
+/* --- ADC RailCom / Télémétrie --- */
+#define EXSA_ADC_CURRENT     32   // ADC1_CH4 → courant voie
+#define EXSA_ADC_VOLTAGE     33   // ADC1_CH5 → tension voie
+
+/* --- CAN Booster (natif ESP32) --- */
+#define EXSA_CAN_RX          4    // RX CAN natif
+#define EXSA_CAN_TX          5    // TX CAN natif

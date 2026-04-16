@@ -2,6 +2,8 @@
 #include "EXSA_Main.h"
 #include "EXSA_Config.h"
 #include "esp_task_wdt.h"
+#include "EXSA_CanBooster.h"
+#include "EXSA_Booster.h"
 
 static TaskHandle_t exsaTaskHandle = nullptr;
 
@@ -17,24 +19,56 @@ void exsaTask(void* parameter)
     Serial.println("[RTOS] Tâche EXSA démarrée");
 #endif
 
-    // Ajout de la tâche au watchdog
     esp_task_wdt_add(nullptr);
 
     for (;;)
     {
-        // Reset watchdog
         esp_task_wdt_reset();
-
-        // Boucle principale EXSA
         EXSA_Main::loop();
-
-        // Yield FreeRTOS
         vTaskDelay(pdMS_TO_TICKS(1));
     }
 }
 
 // ------------------------------------------------------------
-// Setup : création de la tâche EXSA
+// Tâche FreeRTOS dédiée au CAN Booster
+// ------------------------------------------------------------
+void BoosterCAN_Task(void* parameter)
+{
+#if EXSA_DEBUG
+    Serial.println("[RTOS] Tâche CAN Booster démarrée");
+#endif
+
+    EXSA_CanBooster::begin();
+
+    for (;;)
+    {
+        EXSA_CanBooster::process();
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+}
+
+// ------------------------------------------------------------
+// Tâche FreeRTOS dédiée au Booster (DCC + DRV8801 + RailCom)
+// ------------------------------------------------------------
+void BoosterCore_Task(void* parameter)
+{
+#if EXSA_DEBUG
+    Serial.println("[RTOS] Tâche BoosterCore démarrée");
+#endif
+
+    EXSA_Booster::begin();
+    esp_task_wdt_add(nullptr);
+
+    for (;;)
+    {
+        esp_task_wdt_reset();
+        EXSA_Booster::update();
+        vTaskDelay(pdMS_TO_TICKS(1)); // 1 ms
+    }
+}
+
+// ------------------------------------------------------------
+// Setup : création des tâches EXSA + CAN Booster + BoosterCore
 // ------------------------------------------------------------
 void setup()
 {
@@ -44,21 +78,41 @@ void setup()
     Serial.println("\n[BOOT] EXSA démarrage (RTOS + WDT)...");
 #endif
 
-    // Initialisation EXSA
     EXSA_Main::begin();
 
-    // Initialisation watchdog
     esp_task_wdt_init(EXSA_WDT_TIMEOUT_SEC, true);
 
-    // Création de la tâche EXSA
+    // Tâche EXSA
     xTaskCreatePinnedToCore(
         exsaTask,
         "EXSA_Task",
         4096,
         nullptr,
-        1,              // priorité basse mais suffisante
+        1,
         &exsaTaskHandle,
-        APP_CPU_NUM     // cœur 1 (évite conflit WiFi)
+        APP_CPU_NUM
+    );
+
+    // Tâche CAN Booster
+    xTaskCreatePinnedToCore(
+        BoosterCAN_Task,
+        "BoosterCAN_Task",
+        4096,
+        nullptr,
+        2,
+        nullptr,
+        APP_CPU_NUM
+    );
+
+    // Tâche BoosterCore (DCC + DRV8801 + RailCom)
+    xTaskCreatePinnedToCore(
+        BoosterCore_Task,
+        "BoosterCore_Task",
+        4096,
+        nullptr,
+        3,              // priorité la plus haute
+        nullptr,
+        APP_CPU_NUM
     );
 }
 
