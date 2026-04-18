@@ -28,9 +28,13 @@
 #define EXSA_PRESENCE_PIN 15
 
 /* -----------------------------
-   Sélecteur physique H / AH
+   Sélecteurs physiques H/AH + Booster
 ------------------------------*/
-#define EXSA_DIP_PIN 12
+// DIP 1 = H / AH
+#define EXSA_DIP_HAH_PIN      12
+
+// DIP 2 = Booster ON / OFF
+#define EXSA_DIP_BOOSTER_PIN  2     // GPIO2 → fiable, boot-safe
 
 /* -----------------------------
    Charlieplexing (mât SNCF)

@@ -4,26 +4,28 @@
 class EXSA_BoosterHw
 {
 public:
-    // Initialisation hardware (DRV8801, PWM, ADC…)
     static void begin();
 
-    // --- DCC ---
+    // DCC
     static void applyDcc(const uint8_t *data, uint8_t len);
 
-    // --- Cutout RailCom ---
+    // Cutout RailCom
     static void enableCutout();
     static void disableCutout();
 
-    // --- DRV8801 ---
+    // DRV8801
     static void enableOutput();
     static void disableOutput();
+    static bool  isFaultActive();
 
-    // --- Télémétrie voie ---
+    // Télémétrie voie
     static uint16_t readCurrent_mA();
     static uint16_t readVoltage_mV();
 
+    // RailCom (ADC brut haute fréquence)
+    static int16_t readRailcomAdcRaw();
+
 private:
-    // Fonctions internes
     static void setupPwmDcc();
     static void setupDrv8801();
     static void setupAdc();

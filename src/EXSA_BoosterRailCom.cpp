@@ -2,136 +2,151 @@
 #include "EXSA_BoosterHw.h"
 #include <Arduino.h>
 
-// Indique si on est dans un cutout
-volatile bool EXSA_BoosterRailCom::_active = false;
+/*
+ * ============================================================
+ *  EXSA_BoosterRailCom — Version Optimisée Discovery 2026
+ * ============================================================
+ */
 
-// Position d’écriture dans le buffer
-volatile int EXSA_BoosterRailCom::_index = 0;
+volatile bool   EXSA_BoosterRailCom::_active      = false;
+volatile int    EXSA_BoosterRailCom::_index       = 0;
+int16_t         EXSA_BoosterRailCom::_buffer[BUF_SIZE];
+uint16_t        EXSA_BoosterRailCom::_lastAddress = 0;
 
-// Buffer d’échantillonnage ADC
-int EXSA_BoosterRailCom::_buffer[BUF_SIZE];
+static hw_timer_t *s_railcomTimer = nullptr;
 
-// Dernière adresse détectée
-uint16_t EXSA_BoosterRailCom::_lastAddress = 0;
+static void IRAM_ATTR railcomTimerISR()
+{
+    if (!EXSA_BoosterRailCom::_active)
+        return;
 
-/* ============================================================
-   Initialisation
-   ============================================================ */
+    int idx = EXSA_BoosterRailCom::_index;
+    if (idx >= EXSA_BoosterRailCom::BUF_SIZE)
+        return;
+
+    EXSA_BoosterRailCom::_buffer[idx] = EXSA_BoosterHw::readRailcomAdcRaw();
+    EXSA_BoosterRailCom::_index = idx + 1;
+}
+
 void EXSA_BoosterRailCom::begin()
 {
-    _active = false;
-    _index = 0;
+    _active      = false;
+    _index       = 0;
     _lastAddress = 0;
+
+    s_railcomTimer = timerBegin(1, 80, true); // 80 MHz / 80 = 1 MHz
+    timerAttachInterrupt(s_railcomTimer, &railcomTimerISR, true);
+    timerAlarmWrite(s_railcomTimer, 12, true); // 12 ticks ≈ 12 µs (~83 kHz)
+    timerAlarmEnable(s_railcomTimer);
 }
 
-/* ============================================================
-   Début du cutout
-   ============================================================ */
 void EXSA_BoosterRailCom::onCutoutStart()
 {
-    _active = true;   // on commence à échantillonner
-    _index = 0;       // on repart au début du buffer
+    _index  = 0;
+    _active = true;
 }
 
-/* ============================================================
-   Fin du cutout → décodage
-   ============================================================ */
 void EXSA_BoosterRailCom::onCutoutEnd()
 {
-    _active = false;  // on arrête l’échantillonnage
-    decode();         // on analyse le buffer
+    _active = false;
+
+    int count = _index;
+    if (count < 40)
+        return;
+
+    decode();
 }
 
-/* ============================================================
-   Appelé toutes les 1 ms par EXSA_Booster
-   ============================================================ */
 void EXSA_BoosterRailCom::update()
 {
-    if (_active)
-        sample();     // on lit l’ADC tant que le cutout est actif
+    // réservé debug / timeout
 }
 
-/* ============================================================
-   Échantillonnage ADC pendant le cutout
-   ============================================================ */
-void EXSA_BoosterRailCom::sample()
-{
-    // Sécurité : éviter de dépasser le buffer
-    if (_index >= BUF_SIZE)
-        return;
-
-    // Lecture du courant voie (ADC)
-    _buffer[_index++] = EXSA_BoosterHw::readCurrent_mA();
-}
-
-/* ============================================================
-   Décodage complet du cutout
-   ============================================================ */
 void EXSA_BoosterRailCom::decode()
 {
-    // Trop peu d’échantillons → cutout invalide
-    if (_index < 40)
+    int count = _index;
+    if (count < 40)
         return;
 
-    /*
-     * Découpage du cutout :
-     *  - Channel 1 ≈ 25 % du cutout
-     *  - Channel 2 ≈ 75 % du cutout
-     */
-    int mid1 = _index * 0.25;
-    int mid2 = _index * 0.75;
+    int ch1Start = count / 8;
+    int ch1Len   = count / 3;
 
-    // Décodage des deux channels
-    uint8_t ch1 = decodeChannel(_buffer, mid1);
-    uint8_t ch2 = decodeChannel(_buffer, mid2);
+    int ch2Start = ch1Start + ch1Len;
+    int ch2Len   = count / 3;
 
-    // Channel 1 = adresse loco
+    if (ch1Start + ch1Len > count) ch1Len = count - ch1Start;
+    if (ch2Start + ch2Len > count) ch2Len = count - ch2Start;
+
+    uint8_t ch1 = decodeChannel(_buffer, ch1Start, ch1Len);
+    uint8_t ch2 = decodeChannel(_buffer, ch2Start, ch2Len);
+
     if (ch1 != 0)
         _lastAddress = ch1;
 
-    // Channel 2 = CV / ACK / data (à implémenter)
     (void)ch2;
 }
 
-/* ============================================================
-   Décodage d’un channel RailCom
-   ============================================================ */
-uint8_t EXSA_BoosterRailCom::decodeChannel(const int *buf, int start)
+uint8_t EXSA_BoosterRailCom::decodeChannel(const int16_t *buf,
+                                           int startIndex,
+                                           int length)
 {
-    /*
-     * 1) Calcul d’un seuil dynamique
-     *    → permet de s’adapter au bruit et aux variations
-     */
-    int threshold = 0;
-    for (int i = 0; i < BUF_SIZE; i++)
-        threshold += buf[i];
-    threshold /= BUF_SIZE;
+    if (length < 20)
+        return 0;
 
-    /*
-     * 2) Lecture des 8 bits de data
-     *    Chaque bit dure environ 20–25 µs
-     *    On prend un échantillon au milieu de chaque bit
-     */
+    int16_t minV = 32767;
+    int16_t maxV = -32768;
+
+    for (int i = 0; i < length; i++)
+    {
+        int16_t v = buf[startIndex + i];
+        if (v < minV) minV = v;
+        if (v > maxV) maxV = v;
+    }
+
+    int16_t threshold = (minV + maxV) / 2;
+
+    int startBitIndex = -1;
+    int searchLimit = min(20, length - 1);
+
+    for (int i = 1; i < searchLimit; i++)
+    {
+        int16_t prev = buf[startIndex + i - 1];
+        int16_t curr = buf[startIndex + i];
+
+        if (prev > threshold && curr < threshold)
+        {
+            startBitIndex = i;
+            break;
+        }
+    }
+
+    if (startBitIndex < 0)
+        return 0;
+
+    const int samplesPerBit = 2;
     uint8_t value = 0;
 
     for (int bit = 0; bit < 8; bit++)
     {
-        int idx = start + bit * 2;   // espacement approximatif
-        if (idx >= BUF_SIZE)
+        int sampleIndex =
+            startIndex + startBitIndex + (bit + 1) * samplesPerBit + 1;
+
+        if (sampleIndex >= startIndex + length)
             break;
 
-        // Si le courant chute → bit = 1
-        if (buf[idx] < threshold)
+        if (buf[sampleIndex] < threshold)
             value |= (1 << bit);
     }
 
     return value;
 }
 
-/* ============================================================
-   Adresse détectée
-   ============================================================ */
 uint16_t EXSA_BoosterRailCom::getLastAddress()
 {
     return _lastAddress;
+}
+
+void EXSA_BoosterRailCom::clearLastAddress()
+{
+    _lastAddress = 0;
 }
