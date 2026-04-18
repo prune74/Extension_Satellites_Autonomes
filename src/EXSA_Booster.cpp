@@ -70,9 +70,18 @@ void EXSA_Booster::updateTelemetry()
     uint16_t courant = EXSA_BoosterHw::readCurrent_mA();
     uint16_t tension = EXSA_BoosterHw::readVoltage_mV();
 
-    // TODO : envoyer via CAN
-    (void)courant;
-    (void)tension;
+    // --- ENVOI CAN TÉLÉMÉTRIE (0x102) ---
+    uint8_t courant8 = min<uint16_t>(courant / 10, 255);
+    uint8_t tension8 = min<uint16_t>(tension / 100, 255);
+
+    CANMessage msg;
+    msg.id  = 0x102;
+    msg.len = 3;
+    msg.data[0] = courant8;
+    msg.data[1] = tension8;
+    msg.data[2] = EXSA_CanBooster::boosterState;
+
+    ACAN_ESP32::can.tryToSend(msg);
 }
 
 void EXSA_Booster::updateRailcom()
@@ -88,8 +97,14 @@ void EXSA_Booster::updateRailcom()
 
     if (addr != 0)
     {
-        // TODO : envoyer via CAN
-        // EXSA_CanBooster::onRailcomLocal(addr);
+        // --- ENVOI CAN RAILCOM (0x103) ---
+        CANMessage msg;
+        msg.id  = 0x103;
+        msg.len = 2;
+        msg.data[0] = addr & 0xFF;
+        msg.data[1] = (addr >> 8) & 0xFF;
+
+        ACAN_ESP32::can.tryToSend(msg);
 
         EXSA_BoosterRailCom::clearLastAddress();
     }

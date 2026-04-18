@@ -11,17 +11,29 @@ volatile uint16_t EXSA_CanBooster::voieCourant_mA = 0;
 volatile uint16_t EXSA_CanBooster::voieTension_mV = 0;
 volatile uint8_t  EXSA_CanBooster::boosterState   = 0;
 
+/*
+ * ============================================================
+ *  Initialisation CAN — Discovery 2026
+ * ============================================================
+ */
+
 void EXSA_CanBooster::begin()
 {
     ACAN_ESP32_Settings settings(500000); // 500 kbps
-    settings.mRxPin = GPIO_NUM_4;         // à ajuster
-    settings.mTxPin = GPIO_NUM_5;         // à ajuster
+    settings.mRxPin = GPIO_NUM_4;         // à ajuster selon carte
+    settings.mTxPin = GPIO_NUM_5;
 
     const uint32_t err = ACAN_ESP32::can.begin(settings);
     if (err != 0) {
-        // TODO : gestion erreur
+        // TODO : gestion erreur (LED, log, etc.)
     }
 }
+
+/*
+ * ============================================================
+ *  Boucle de traitement CAN
+ * ============================================================
+ */
 
 void EXSA_CanBooster::process()
 {
@@ -30,6 +42,12 @@ void EXSA_CanBooster::process()
         handleFrame(msg);
     }
 }
+
+/*
+ * ============================================================
+ *  Dispatch des trames CAN
+ * ============================================================
+ */
 
 void EXSA_CanBooster::handleFrame(const CANMessage &msg)
 {
@@ -44,6 +62,12 @@ void EXSA_CanBooster::handleFrame(const CANMessage &msg)
     }
 }
 
+/*
+ * ============================================================
+ *  Réception DCC (0x100)
+ * ============================================================
+ */
+
 void EXSA_CanBooster::onDccFrame(const CANMessage &msg)
 {
     dccLen = msg.len;
@@ -51,10 +75,23 @@ void EXSA_CanBooster::onDccFrame(const CANMessage &msg)
         dccBuffer[i] = msg.data[i];
 }
 
+/*
+ * ============================================================
+ *  Réception Cutout (0x101)
+ * ============================================================
+ */
+
 void EXSA_CanBooster::onCutoutFrame(const CANMessage &msg)
 {
     cutoutActive = (msg.data[0] != 0);
 }
+
+/*
+ * ============================================================
+ *  Réception Télémétrie (0x102)
+ *  (utile si un autre booster envoie ses infos)
+ * ============================================================
+ */
 
 void EXSA_CanBooster::onTelemetryFrame(const CANMessage &msg)
 {
@@ -62,6 +99,12 @@ void EXSA_CanBooster::onTelemetryFrame(const CANMessage &msg)
     voieTension_mV = msg.data[1] * 100;  // ex : 120 → 12.0 V
     boosterState   = msg.data[2];
 }
+
+/*
+ * ============================================================
+ *  Réception RailCom (0x103)
+ * ============================================================
+ */
 
 void EXSA_CanBooster::onRailcomFrame(const CANMessage &msg)
 {

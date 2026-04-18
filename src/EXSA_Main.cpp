@@ -15,7 +15,7 @@
 #include "EXSA_Config.h"
 #include "EXSA_Pins.h"
 
-#include "EXSA_Booster.h"   // toujours inclus, mais activé dynamiquement
+#include "EXSA_Booster.h"   // toujours inclus, mais jamais initialisé ici
 
 #include <Arduino.h>
 #include <Adafruit_PWMServoDriver.h>
@@ -109,12 +109,9 @@ void EXSA_Main::begin() noexcept
     (void)signaux.setAspect(ASPECT_MASQUE);
 
     /* -----------------------------
-       Booster (si DIP actif)
+       Booster
+       (initialisé dans BoosterCore_Task)
     ------------------------------*/
-    if (exsaHasBooster)
-    {
-        EXSA_Booster::begin();
-    }
 
     if (EXSA_DEBUG)
         Serial.println("[EXSA] OK");
@@ -165,11 +162,7 @@ void EXSA_Main::loop() noexcept
     EXSA_Canton::update();
     EXSA_Switches::update();
 
-    // Booster dynamique
-    if (exsaHasBooster)
-    {
-        EXSA_Booster::update();
-    }
+    // Booster mis à jour dans BoosterCore_Task
 }
 
 /* ============================================================
