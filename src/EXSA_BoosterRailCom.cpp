@@ -4,26 +4,33 @@
 
 /*
  * ============================================================
- *  EXSA_BoosterRailCom — Version Discovery 2026
- *  Décodage Locoduino : adresses longues + filtrage
+ *  EXSA_BoosterRailCom — Décodage RailCom Discovery 2026
  * ============================================================
  */
 
+// ------------------------------------------------------------
+// Variables internes (partagées avec l’ISR)
+// ------------------------------------------------------------
 volatile bool   EXSA_BoosterRailCom::_active      = false;
 volatile int    EXSA_BoosterRailCom::_index       = 0;
 int16_t         EXSA_BoosterRailCom::_buffer[BUF_SIZE];
 
 uint16_t        EXSA_BoosterRailCom::_lastAddress = 0;
 
-// Buffer circulaire pour filtrage (anti parasites)
+// ------------------------------------------------------------
+// Filtrage anti-parasites (4 valeurs identiques)
+// ------------------------------------------------------------
 static const int FILTER_SIZE = 4;
 static uint16_t filterBuf[FILTER_SIZE] = {0};
 static int filterIndex = 0;
 
+// ------------------------------------------------------------
+// Timer matériel pour ISR RailCom
+// ------------------------------------------------------------
 static hw_timer_t *s_railcomTimer = nullptr;
 
 /* ============================================================
- *  ISR — échantillonnage ADC haute fréquence
+ *  ISR — échantillonnage ADC haute fréquence (~83 kHz)
  * ============================================================ */
 
 static void IRAM_ATTR railcomTimerISR()
@@ -35,12 +42,13 @@ static void IRAM_ATTR railcomTimerISR()
     if (idx >= EXSA_BoosterRailCom::BUF_SIZE)
         return;
 
+    // Lecture RailCom HF → ADC1_CH0 (GPIO36)
     EXSA_BoosterRailCom::_buffer[idx] = EXSA_BoosterHw::readRailcomAdcRaw();
     EXSA_BoosterRailCom::_index = idx + 1;
 }
 
 /* ============================================================
- *  Initialisation
+ *  begin() — Initialisation RailCom
  * ============================================================ */
 
 void EXSA_BoosterRailCom::begin()
@@ -51,7 +59,7 @@ void EXSA_BoosterRailCom::begin()
 
     s_railcomTimer = timerBegin(1, 80, true); // 80 MHz / 80 = 1 MHz
     timerAttachInterrupt(s_railcomTimer, &railcomTimerISR, true);
-    timerAlarmWrite(s_railcomTimer, 12, true); // ~83 kHz
+    timerAlarmWrite(s_railcomTimer, 12, true); // 1 MHz / 12 ≈ 83 kHz
     timerAlarmEnable(s_railcomTimer);
 }
 
@@ -81,7 +89,7 @@ void EXSA_BoosterRailCom::update()
 }
 
 /* ============================================================
- *  Décodage RailCom — version Locoduino
+ *  decode() — Décodage Locoduino CH1 / CH2
  * ============================================================ */
 
 void EXSA_BoosterRailCom::decode()
@@ -90,7 +98,7 @@ void EXSA_BoosterRailCom::decode()
     if (count < 40)
         return;
 
-    // Découpage CH1 / CH2 (approximation robuste)
+    // Découpage CH1 / CH2
     int ch1Start = count / 8;
     int ch1Len   = count / 3;
 
@@ -103,13 +111,9 @@ void EXSA_BoosterRailCom::decode()
     uint8_t ch1 = decodeChannel(_buffer, ch1Start, ch1Len);
     uint8_t ch2 = decodeChannel(_buffer, ch2Start, ch2Len);
 
-    // Locoduino : CH1 contient l’adresse (LOW ou HIGH)
     if (ch1 == 0)
         return;
 
-    // Reconstruction Locoduino :
-    // CH1 = header (bits flags)
-    // CH2 = data (LOW ou HIGH)
     uint8_t header = ch1;
     uint8_t data   = ch2;
 
@@ -125,37 +129,34 @@ void EXSA_BoosterRailCom::decode()
     if (header & CH1_ADR_HIGH)
         dccAddrHigh = data | (header << 6);
 
-    // Adresse complète ?
     if (dccAddrLow < 0 || dccAddrHigh < 0)
         return;
 
-    // Reconstruction adresse courte / longue
     int16_t addr;
 
     if (dccAddrHigh < 128)
-        addr = dccAddrLow; // adresse courte
+        addr = dccAddrLow;
     else
-        addr = ((dccAddrHigh - 128) << 8) + dccAddrLow; // longue
+        addr = ((dccAddrHigh - 128) << 8) + dccAddrLow;
 
-    // Filtrage anti parasites (4 valeurs identiques)
+    // Filtrage anti-parasites
     filterBuf[filterIndex] = addr;
     filterIndex = (filterIndex + 1) % FILTER_SIZE;
 
     for (int i = 0; i < FILTER_SIZE; i++)
     {
         if (filterBuf[i] != addr)
-            return; // instable → rejet
+            return;
     }
 
     _lastAddress = addr;
 
-    // Reset pour prochaine trame
     dccAddrLow  = -1;
     dccAddrHigh = -1;
 }
 
 /* ============================================================
- *  Décodage d’un canal (8 bits)
+ *  decodeChannel() — Décodage d’un canal RailCom (8 bits)
  * ============================================================ */
 
 uint8_t EXSA_BoosterRailCom::decodeChannel(const int16_t *buf,
@@ -177,7 +178,6 @@ uint8_t EXSA_BoosterRailCom::decodeChannel(const int16_t *buf,
 
     int16_t threshold = (minV + maxV) / 2;
 
-    // Recherche front descendant = début trame
     int startBitIndex = -1;
     int searchLimit = min(20, length - 1);
 

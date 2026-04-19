@@ -15,7 +15,7 @@
 #include "EXSA_Config.h"
 #include "EXSA_Pins.h"
 
-#include "EXSA_Booster.h"   // toujours inclus, mais jamais initialisé ici
+#include "EXSA_BoosterCore.h"   // Tâche Booster Discovery 2026
 
 #include <Arduino.h>
 #include <Adafruit_PWMServoDriver.h>
@@ -109,9 +109,25 @@ void EXSA_Main::begin() noexcept
     (void)signaux.setAspect(ASPECT_MASQUE);
 
     /* -----------------------------
-       Booster
-       (initialisé dans BoosterCore_Task)
+       Booster : mode actif / passif
     ------------------------------*/
+    if (!exsaHasBooster)
+    {
+        // Mode passif : LED rouge ON
+        pinMode(EXSA_LED_ERROR_PIN, OUTPUT);
+        digitalWrite(EXSA_LED_ERROR_PIN, HIGH);
+
+        if (EXSA_DEBUG)
+            Serial.println("[EXSA] Mode passif : Booster désactivé");
+    }
+    else
+    {
+        if (EXSA_DEBUG)
+            Serial.println("[EXSA] Mode actif : Booster initialisé");
+
+        // Lancement de la tâche Booster (CAN + DCC + RailCom)
+        EXSA_BoosterCore::startTask();
+    }
 
     if (EXSA_DEBUG)
         Serial.println("[EXSA] OK");
@@ -162,7 +178,11 @@ void EXSA_Main::loop() noexcept
     EXSA_Canton::update();
     EXSA_Switches::update();
 
-    // Booster mis à jour dans BoosterCore_Task
+    // Mode passif : rien à faire côté Booster
+    if (!exsaHasBooster)
+        return;
+
+    // Mode actif : tout le Booster tourne dans la tâche EXSA_BoosterCore
 }
 
 /* ============================================================

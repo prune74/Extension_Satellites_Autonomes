@@ -72,6 +72,36 @@
 #define EXSA_DIR_LED3_INTENSITE   255
 
 /* ============================================================
+ *  Sécurité Booster Discovery 2026
+ * ------------------------------------------------------------
+ *  Seuils configurables pour la protection voie :
+ *
+ *  - EXSA_BOOSTER_MAX_COURANT_mA
+ *      Courant max avant coupure (court-circuit local)
+ *
+ *  - EXSA_BOOSTER_MIN_TENSION_mV
+ *      Tension min avant coupure (voie OFF / alim faible)
+ *
+ *  - EXSA_BOOSTER_PHASE_TOLERANCE
+ *      Tolérance d’inversion de phase (0 = strict)
+ *
+ *  - EXSA_BOOSTER_ENABLE_GLOBAL_PROTECTION
+ *      true  = coupe si un autre booster signale un défaut
+ *      false = ignore les défauts des autres boosters
+ *
+ *  - EXSA_BOOSTER_ENABLE_GLOBAL_CUTOUT
+ *      true  = coupe si cutout global actif
+ *      false = ignore le cutout global
+ *
+ * ============================================================ */
+
+#define EXSA_BOOSTER_MAX_COURANT_mA        3000   // 3 A
+#define EXSA_BOOSTER_MIN_TENSION_mV        8000   // 8 V
+#define EXSA_BOOSTER_PHASE_TOLERANCE       0      // 0 = strict
+#define EXSA_BOOSTER_ENABLE_GLOBAL_PROTECTION  true
+#define EXSA_BOOSTER_ENABLE_GLOBAL_CUTOUT      true
+
+/* ============================================================
  *  Aucun aspect ici !
  * ------------------------------------------------------------
  *  Les aspects SNCF sont définis dans :
@@ -79,5 +109,3 @@
  *
  *  Le protocole SA → EXSA utilise un octet (enum simple).
  * ============================================================ */
-
- 

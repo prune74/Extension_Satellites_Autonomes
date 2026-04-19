@@ -6,18 +6,20 @@
 
 /*
  * ============================================================
- *  EXSA_BoosterHw — Version patchée Discovery 2026
- *  Alignée avec LaBox Locoduino
+ *  EXSA_BoosterHw — Couche matérielle du Booster Discovery 2026
  * ============================================================
  */
 
 static constexpr int LEDC_CHANNEL = 0;
 
+/* ============================================================
+ *  begin() — Initialisation complète du hardware voie
+ * ============================================================ */
 void EXSA_BoosterHw::begin()
 {
-    setupDrv8801();
-    setupPwmDcc();
-    setupAdc();
+    setupDrv8801();   // pont en H
+    setupPwmDcc();    // PWM DCC
+    setupAdc();       // ADC courant / tension / RailCom
 }
 
 /* ============================================================
@@ -30,7 +32,7 @@ void EXSA_BoosterHw::setupDrv8801()
     pinMode(EXSA_DRV_PHASE,  OUTPUT);
     pinMode(EXSA_DRV_FAULT,  INPUT_PULLUP);
 
-    disableOutput();
+    disableOutput();                 // sécurité au démarrage
     digitalWrite(EXSA_DRV_PHASE, LOW);
 }
 
@@ -46,7 +48,7 @@ void EXSA_BoosterHw::disableOutput()
 
 bool EXSA_BoosterHw::isFaultActive()
 {
-    return digitalRead(EXSA_DRV_FAULT) == LOW;
+    return digitalRead(EXSA_DRV_FAULT) == LOW; // DRV8801 FAULT = LOW
 }
 
 /* ============================================================
@@ -57,7 +59,7 @@ void EXSA_BoosterHw::setupPwmDcc()
 {
     ledcSetup(LEDC_CHANNEL, 20000, 8);     // 20 kHz, 8 bits
     ledcAttachPin(EXSA_DCC_PIN, LEDC_CHANNEL);
-    ledcWrite(LEDC_CHANNEL, 0);
+    ledcWrite(LEDC_CHANNEL, 0);            // PWM OFF au démarrage
 }
 
 void EXSA_BoosterHw::applyDcc(const uint8_t *data, uint8_t len)
@@ -65,11 +67,8 @@ void EXSA_BoosterHw::applyDcc(const uint8_t *data, uint8_t len)
     if (len == 0)
         return;
 
-    // data[0] = bit DCC (0 ou 1)
     digitalWrite(EXSA_DRV_PHASE, data[0] ? HIGH : LOW);
-
-    // PWM pleine puissance
-    ledcWrite(LEDC_CHANNEL, 255);
+    ledcWrite(LEDC_CHANNEL, 255);          // PWM pleine puissance
 }
 
 /* ============================================================
@@ -78,17 +77,13 @@ void EXSA_BoosterHw::applyDcc(const uint8_t *data, uint8_t len)
 
 void EXSA_BoosterHw::enableCutout()
 {
-    // PWM OFF
-    ledcWrite(LEDC_CHANNEL, 0);
-
-    // Désactive le pont H
-    digitalWrite(EXSA_DRV_ENABLE, LOW);
+    ledcWrite(LEDC_CHANNEL, 0);            // PWM OFF
+    digitalWrite(EXSA_DRV_ENABLE, LOW);    // voie flottante
 }
 
 void EXSA_BoosterHw::disableCutout()
 {
-    // Réactive le pont H
-    digitalWrite(EXSA_DRV_ENABLE, HIGH);
+    digitalWrite(EXSA_DRV_ENABLE, HIGH);   // réactive la voie
 }
 
 /* ============================================================
@@ -101,7 +96,15 @@ void EXSA_BoosterHw::setupAdc()
     analogSetAttenuation(ADC_11db);
 
     adc1_config_width(ADC_WIDTH_BIT_12);
+
+    // Courant voie (GPIO32 → ADC1_CH4)
     adc1_config_channel_atten(ADC1_CHANNEL_4, ADC_ATTEN_DB_12);
+
+    // Tension voie (GPIO33 → ADC1_CH5)
+    adc1_config_channel_atten(ADC1_CHANNEL_5, ADC_ATTEN_DB_12);
+
+    // RailCom HF (GPIO36 → ADC1_CH0)
+    adc1_config_channel_atten(ADC1_CHANNEL_0, ADC_ATTEN_DB_12);
 }
 
 uint16_t EXSA_BoosterHw::readCurrent_mA()
@@ -126,6 +129,6 @@ uint16_t EXSA_BoosterHw::readVoltage_mV()
 
 int16_t EXSA_BoosterHw::readRailcomAdcRaw()
 {
-    // Lecture directe ADC1 (rapide)
-    return adc1_get_raw(ADC1_CHANNEL_4);
+    // Lecture brute RailCom HF (GPIO36 → ADC1_CH0)
+    return adc1_get_raw(ADC1_CHANNEL_0);
 }
