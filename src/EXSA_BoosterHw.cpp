@@ -97,7 +97,7 @@ void EXSA_BoosterHw::setupAdc()
 
     adc1_config_width(ADC_WIDTH_BIT_12);
 
-    // Courant voie (GPIO32 → ADC1_CH4)
+    // Courant via VPROPI (GPIO32 → ADC1_CH4)
     adc1_config_channel_atten(ADC1_CHANNEL_4, ADC_ATTEN_DB_12);
 
     // Tension voie (GPIO33 → ADC1_CH5)
@@ -109,10 +109,12 @@ void EXSA_BoosterHw::setupAdc()
 
 uint16_t EXSA_BoosterHw::readCurrent_mA()
 {
-    int raw = analogRead(EXSA_ADC_CURRENT);
+    int raw = analogRead(EXSA_ADC_VPROPI);
 
-    float voltage = (raw / 4095.0f) * 3.3f;
-    float current = (voltage / 0.14f) * 1000.0f; // shunt 0.14 Ω
+    float v = (raw / 4095.0f) * 3.3f;
+
+    // VPROPI = 5 × Vshunt  →  I = VPROPI / (5 × Rshunt)
+    float current = (v / (5.0f * EXSA_SHUNT_OHMS)) * 1000.0f;
 
     return (uint16_t)current;
 }
@@ -129,6 +131,5 @@ uint16_t EXSA_BoosterHw::readVoltage_mV()
 
 int16_t EXSA_BoosterHw::readRailcomAdcRaw()
 {
-    // Lecture brute RailCom HF (GPIO36 → ADC1_CH0)
     return adc1_get_raw(ADC1_CHANNEL_0);
 }

@@ -102,6 +102,17 @@
 #define EXSA_BOOSTER_ENABLE_GLOBAL_CUTOUT      true
 
 /* ============================================================
+ *  Mesure courant via DRV8801 (VPROPI)
+ * ------------------------------------------------------------
+ *  - EXSA_SHUNT_OHMS : valeur du shunt entre SENSE et GND
+ *  - EXSA_VPROPI_GAIN : gain interne DRV8801 (VPROPI = 5 × Vshunt)
+ * ============================================================ */
+
+#define EXSA_SHUNT_OHMS      0.14f   // shunt 0,14 Ω low-side
+#define EXSA_VPROPI_GAIN     5.0f    // VPROPI = 5 × Vshunt
+
+
+/* ============================================================
  *  Aucun aspect ici !
  * ------------------------------------------------------------
  *  Les aspects SNCF sont définis dans :

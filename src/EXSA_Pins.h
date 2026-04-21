@@ -92,7 +92,7 @@
 #define EXSA_DCC_PIN         23   // PWM LEDC canal 0
 
 /* --- ADC Télémétrie --- */
-#define EXSA_ADC_CURRENT     32   // ADC1_CH4 → courant voie
+#define EXSA_ADC_VPROPI      32   // ADC1_CH4 → courant via VPROPI (DRV8801)
 #define EXSA_ADC_VOLTAGE     33   // ADC1_CH5 → tension voie
 
 /* --- ADC RailCom HF (dédié) --- */
