@@ -162,3 +162,18 @@ void EXSA_CanBooster::onRailcomFrame(const CANMessage &msg)
 {
     railcomAddress = (uint16_t(msg.data[1]) << 8) | msg.data[0];
 }
+
+// ============================================================================
+// Envoi adresse RailCom d’un booster local (ID 0x103)  
+// ============================================================================
+void EXSA_CanBooster::sendRailcomAddress(uint16_t addr)
+{
+    CANMessage msg;
+    msg.id  = 0x103;
+    msg.len = 2;
+
+    msg.data[0] = addr & 0xFF;        // LSB
+    msg.data[1] = (addr >> 8) & 0xFF; // MSB
+
+    ACAN_ESP32::can.tryToSend(msg);
+}

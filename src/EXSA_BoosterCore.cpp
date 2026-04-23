@@ -1,6 +1,7 @@
 #include "EXSA_BoosterCore.h"
 #include "EXSA_CanBooster.h"
 #include "EXSA_Booster.h"
+#include "EXSA_BoosterRailCom.h"   // <-- AJOUT RailCom
 #include "EXSA_Config.h"
 
 #include <Arduino.h>
@@ -43,6 +44,7 @@ void EXSA_BoosterCore::taskEntry(void *param)
 
     EXSA_CanBooster::begin();
     EXSA_Booster::begin();
+    EXSA_BoosterRailCom::begin();   // <-- AJOUT RailCom
 
     esp_task_wdt_add(nullptr);
 
@@ -53,12 +55,38 @@ void EXSA_BoosterCore::taskEntry(void *param)
     TickType_t lastWakeTime = xTaskGetTickCount();
     const TickType_t period = pdMS_TO_TICKS(1);
 
+    static bool prevCutout = false;
+
     for (;;)
     {
         esp_task_wdt_reset();
 
+        // 1) CAN → met à jour cutoutActive, dccBuffer, etc.
         EXSA_CanBooster::process();
+
+        // 2) Booster physique (DCC, DRV8801, protections…)
         EXSA_Booster::update();
+
+        // 3) RailCom : détection cutout START / END
+        bool cutout = EXSA_CanBooster::cutoutActive;
+
+        // CUTOUT START
+        if (cutout && !prevCutout) {
+            EXSA_BoosterRailCom::onCutoutStart();
+        }
+
+        // CUTOUT END
+        if (!cutout && prevCutout) {
+            EXSA_BoosterRailCom::onCutoutEnd();
+
+            uint16_t addr = EXSA_BoosterRailCom::getLastAddress();
+            if (addr != 0) {
+                EXSA_CanBooster::sendRailcomAddress(addr);
+                EXSA_BoosterRailCom::clearLastAddress();
+            }
+        }
+
+        prevCutout = cutout;
 
         vTaskDelayUntil(&lastWakeTime, period);
     }
