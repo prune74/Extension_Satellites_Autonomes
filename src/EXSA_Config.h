@@ -95,22 +95,28 @@
  *
  * ============================================================ */
 
-#define EXSA_BOOSTER_MAX_COURANT_mA        3000   // 3 A
+#define EXSA_BOOSTER_MAX_COURANT_mA        1400   // Limite soft pour booster 1,5 A
 #define EXSA_BOOSTER_MIN_TENSION_mV        8000   // 8 V
-#define EXSA_BOOSTER_PHASE_TOLERANCE       0      // 0 = strict
+#define EXSA_BOOSTER_PHASE_TOLERANCE       0
 #define EXSA_BOOSTER_ENABLE_GLOBAL_PROTECTION  true
 #define EXSA_BOOSTER_ENABLE_GLOBAL_CUTOUT      true
 
 /* ============================================================
- *  Mesure courant via DRV8801 (VPROPI)
+ *  Mesure courant via DRV8874 (IPROPI)
  * ------------------------------------------------------------
- *  - EXSA_SHUNT_OHMS : valeur du shunt entre SENSE et GND
- *  - EXSA_VPROPI_GAIN : gain interne DRV8801 (VPROPI = 5 × Vshunt)
+ *  - EXSA_IPROPI_R_OHMS : résistance entre IPROPI et GND
+ *  - EXSA_IPROPI_GAIN_A_PER_A : gain interne (A_IPROPI)
+ *
+ *  Formule :
+ *      I = V_IPROPI / (R_IPROPI * A_IPROPI)
+ *
+ *  Avec :
+ *      R_IPROPI = 3,6 kΩ → I_TRIP ≈ 1,5 A
+ *      A_IPROPI = 455 µA/A
  * ============================================================ */
 
-#define EXSA_SHUNT_OHMS      0.14f   // shunt 0,14 Ω low-side
-#define EXSA_VPROPI_GAIN     5.0f    // VPROPI = 5 × Vshunt
-
+#define EXSA_IPROPI_R_OHMS          3600.0f     // 3,6 kΩ
+#define EXSA_IPROPI_GAIN_A_PER_A    0.000455f   // 455 µA/A
 
 /* ============================================================
  *  Aucun aspect ici !

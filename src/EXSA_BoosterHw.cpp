@@ -7,6 +7,7 @@
 /*
  * ============================================================
  *  EXSA_BoosterHw — Couche matérielle du Booster Discovery 2026
+ *  Version DRV8874 (PH/EN + IPROPI + RailCom)
  * ============================================================
  */
 
@@ -17,42 +18,51 @@ static constexpr int LEDC_CHANNEL = 0;
  * ============================================================ */
 void EXSA_BoosterHw::begin()
 {
-    setupDrv8801();   // pont en H
-    setupPwmDcc();    // PWM DCC
+    setupDrv8874();   // pont en H DRV8874
+    setupPwmDcc();    // PWM DCC (EN)
     setupAdc();       // ADC courant / tension / RailCom
 }
 
 /* ============================================================
- *  DRV8801 — Gestion du pont en H
+ *  DRV8874 — Gestion du pont en H
  * ============================================================ */
 
-void EXSA_BoosterHw::setupDrv8801()
+void EXSA_BoosterHw::setupDrv8874()
 {
-    pinMode(EXSA_DRV_ENABLE, OUTPUT);
+    pinMode(EXSA_DRV_NSLEEP, OUTPUT);
     pinMode(EXSA_DRV_PHASE,  OUTPUT);
     pinMode(EXSA_DRV_FAULT,  INPUT_PULLUP);
 
-    disableOutput();                 // sécurité au démarrage
-    digitalWrite(EXSA_DRV_PHASE, LOW);
+    // PMODE et IMODE câblés en dur à GND sur le PCB
+    // (PH/EN mode + Quad-Level 1)
+
+    digitalWrite(EXSA_DRV_NSLEEP, LOW);   // sécurité au démarrage
+    digitalWrite(EXSA_DRV_PHASE,  LOW);
+    delay(5);
+    digitalWrite(EXSA_DRV_NSLEEP, HIGH);  // activation DRV8874
 }
 
 void EXSA_BoosterHw::enableOutput()
 {
-    digitalWrite(EXSA_DRV_ENABLE, HIGH);
+    // EN = PWM → activé via ledcWrite()
+    // Ici on s’assure juste que nSLEEP est actif
+    digitalWrite(EXSA_DRV_NSLEEP, HIGH);
 }
 
 void EXSA_BoosterHw::disableOutput()
 {
-    digitalWrite(EXSA_DRV_ENABLE, LOW);
+    // EN = PWM → OFF
+    ledcWrite(LEDC_CHANNEL, 0);
+    digitalWrite(EXSA_DRV_NSLEEP, LOW);
 }
 
 bool EXSA_BoosterHw::isFaultActive()
 {
-    return digitalRead(EXSA_DRV_FAULT) == LOW; // DRV8801 FAULT = LOW
+    return digitalRead(EXSA_DRV_FAULT) == LOW; // DRV8874 FAULT = LOW
 }
 
 /* ============================================================
- *  PWM DCC — génération du signal voie
+ *  PWM DCC — génération du signal voie (EN du DRV8874)
  * ============================================================ */
 
 void EXSA_BoosterHw::setupPwmDcc()
@@ -67,8 +77,11 @@ void EXSA_BoosterHw::applyDcc(const uint8_t *data, uint8_t len)
     if (len == 0)
         return;
 
+    // PH = polarité du bit DCC
     digitalWrite(EXSA_DRV_PHASE, data[0] ? HIGH : LOW);
-    ledcWrite(LEDC_CHANNEL, 255);          // PWM pleine puissance
+
+    // EN = PWM pleine puissance
+    ledcWrite(LEDC_CHANNEL, 255);
 }
 
 /* ============================================================
@@ -77,13 +90,14 @@ void EXSA_BoosterHw::applyDcc(const uint8_t *data, uint8_t len)
 
 void EXSA_BoosterHw::enableCutout()
 {
-    ledcWrite(LEDC_CHANNEL, 0);            // PWM OFF
-    digitalWrite(EXSA_DRV_ENABLE, LOW);    // voie flottante
+    // EN = PWM OFF → voie flottante
+    ledcWrite(LEDC_CHANNEL, 0);
 }
 
 void EXSA_BoosterHw::disableCutout()
 {
-    digitalWrite(EXSA_DRV_ENABLE, HIGH);   // réactive la voie
+    // EN = PWM ON
+    ledcWrite(LEDC_CHANNEL, 255);
 }
 
 /* ============================================================
@@ -97,7 +111,7 @@ void EXSA_BoosterHw::setupAdc()
 
     adc1_config_width(ADC_WIDTH_BIT_12);
 
-    // Courant via VPROPI (GPIO32 → ADC1_CH4)
+    // Courant via IPROPI (GPIO32 → ADC1_CH4)
     adc1_config_channel_atten(ADC1_CHANNEL_4, ADC_ATTEN_DB_12);
 
     // Tension voie (GPIO33 → ADC1_CH5)
@@ -107,27 +121,45 @@ void EXSA_BoosterHw::setupAdc()
     adc1_config_channel_atten(ADC1_CHANNEL_0, ADC_ATTEN_DB_12);
 }
 
+/* ============================================================
+ *  Mesure courant DRV8874 (IPROPI)
+ * ------------------------------------------------------------
+ *  Formule :
+ *      I = V_IPROPI / (R_IPROPI * A_IPROPI)
+ *
+ *  Avec :
+ *      R_IPROPI = 3,6 kΩ
+ *      A_IPROPI = 455 µA/A
+ * ============================================================ */
+
 uint16_t EXSA_BoosterHw::readCurrent_mA()
 {
-    int raw = analogRead(EXSA_ADC_VPROPI);
-
+    int raw = analogRead(EXSA_ADC_IPROPI);
     float v = (raw / 4095.0f) * 3.3f;
 
-    // VPROPI = 5 × Vshunt  →  I = VPROPI / (5 × Rshunt)
-    float current = (v / (5.0f * EXSA_SHUNT_OHMS)) * 1000.0f;
-
-    return (uint16_t)current;
+    float currentA = v / (EXSA_IPROPI_R_OHMS * EXSA_IPROPI_GAIN_A_PER_A);
+    return (uint16_t)(currentA * 1000.0f);
 }
+
+/* ============================================================
+ *  Mesure tension voie
+ * ============================================================ */
 
 uint16_t EXSA_BoosterHw::readVoltage_mV()
 {
     int raw = analogRead(EXSA_ADC_VOLTAGE);
 
     float v = (raw / 4095.0f) * 3.3f;
-    float vrail = v * (57.0f / 10.0f); // diviseur 10k / 47k
+
+    // Diviseur 10k / 47k → facteur 5.7
+    float vrail = v * (57.0f / 10.0f);
 
     return (uint16_t)(vrail * 1000.0f);
 }
+
+/* ============================================================
+ *  RailCom HF — lecture brute ADC
+ * ============================================================ */
 
 int16_t EXSA_BoosterHw::readRailcomAdcRaw()
 {

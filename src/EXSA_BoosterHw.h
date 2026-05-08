@@ -9,21 +9,21 @@
  *
  *  Ce module encapsule TOUT le hardware voie :
  *
- *    - DRV8801 (pont en H)
- *         • enableOutput()  → active la voie
+ *    - DRV8874 (pont en H)
+ *         • enableOutput()  → active la voie (nSLEEP + PWM)
  *         • disableOutput() → coupe la voie
- *         • isFaultActive() → lit la broche FAULT
+ *         • isFaultActive() → lit la broche nFAULT
  *
  *    - PWM DCC (pilotage voie)
  *         • setupPwmDcc()   → configuration LEDC
  *         • applyDcc()      → applique le bit DCC reçu via CAN
  *
  *    - Cutout RailCom
- *         • enableCutout()  → coupe PWM + pont H
- *         • disableCutout() → réactive la voie
+ *         • enableCutout()  → coupe PWM (EN = 0)
+ *         • disableCutout() → réactive la voie (EN = 255)
  *
  *    - ADC (télémétrie + RailCom HF)
- *         • readCurrent_mA()     → courant voie (shunt 0.14 Ω)
+ *         • readCurrent_mA()     → courant voie via IPROPI (DRV8874)
  *         • readVoltage_mV()     → tension voie (diviseur 10k/47k)
  *         • readRailcomAdcRaw()  → lecture ADC1 directe (HF)
  *
@@ -43,7 +43,7 @@ public:
      * begin()
      * --------------------------------------------------------
      * Initialisation complète du hardware voie :
-     *   - DRV8801 (pont en H)
+     *   - DRV8874 (pont en H)
      *   - PWM DCC (LEDC)
      *   - ADC (courant / tension / RailCom)
      *
@@ -60,7 +60,7 @@ public:
      * len     = 1
      *
      * PHASE = bit DCC
-     * PWM   = amplitude (toujours 255)
+     * PWM   = amplitude (toujours 255 hors cutout)
      */
     static void applyDcc(const uint8_t *data, uint8_t len);
 
@@ -69,23 +69,21 @@ public:
      * Cutout RailCom
      * --------------------------------------------------------
      * enableCutout() :
-     *    - coupe PWM
-     *    - désactive le pont H
+     *    - coupe PWM (EN = 0)
      *
      * disableCutout() :
-     *    - réactive le pont H
-     *    - PWM réactivé par applyDcc()
+     *    - réactive le PWM (EN = 255)
      */
     static void enableCutout();
     static void disableCutout();
 
     /*
      * --------------------------------------------------------
-     * DRV8801 — pont en H
+     * DRV8874 — pont en H
      * --------------------------------------------------------
-     * enableOutput()  → active la voie
-     * disableOutput() → coupe la voie
-     * isFaultActive() → lit la broche FAULT (LOW = défaut)
+     * enableOutput()  → s’assure que nSLEEP est actif
+     * disableOutput() → met nSLEEP à LOW + PWM OFF
+     * isFaultActive() → lit la broche nFAULT (LOW = défaut)
      */
     static void enableOutput();
     static void disableOutput();
@@ -96,8 +94,8 @@ public:
      * Télémétrie voie
      * --------------------------------------------------------
      * readCurrent_mA() :
-     *    - lit le shunt 0.14 Ω
-     *    - convertit en mA
+     *    - lit IPROPI (ADC)
+     *    - convertit en mA via R_IPROPI et A_IPROPI
      *
      * readVoltage_mV() :
      *    - lit le diviseur 10k / 47k
@@ -122,10 +120,10 @@ private:
      * Sous-systèmes internes
      * --------------------------------------------------------
      * setupPwmDcc()   → configuration LEDC (20 kHz)
-     * setupDrv8801()  → configuration broches ENABLE/PHASE/FAULT
+     * setupDrv8874()  → configuration broches nSLEEP/PH/nFAULT
      * setupAdc()      → configuration ADC1 (RailCom + télémétrie)
      */
     static void setupPwmDcc();
-    static void setupDrv8801();
+    static void setupDrv8874();
     static void setupAdc();
 };

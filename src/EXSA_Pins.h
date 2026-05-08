@@ -80,27 +80,31 @@
 /* ============================================================
    Section Booster Discovery 2026
    ------------------------------------------------------------
-   DRV8801 + PWM DCC + ADC RailCom + CAN Booster (natif)
+   DRV8874 + PWM DCC + ADC RailCom + CAN Booster (natif)
    ============================================================ */
 
-/* --- DRV8801 --- */
-#define EXSA_DRV_ENABLE      19
-#define EXSA_DRV_PHASE       21
-#define EXSA_DRV_FAULT       22
+/* --- DRV8874 : contrôle --- */
+#define EXSA_DRV_NSLEEP     19   // nSLEEP (enable global)
+#define EXSA_DRV_PHASE      21   // PH (polarité DCC)
+#define EXSA_DRV_FAULT      22   // nFAULT (défaut matériel)
+
+/* --- DRV8874 : modes --- */
+#define EXSA_DRV_PMODE      16   // PMODE → GND (PH/EN)
+#define EXSA_DRV_IMODE      0    // IMODE → GND (Quad‑1)
 
 /* --- PWM DCC --- */
-#define EXSA_DCC_PIN         23   // PWM LEDC canal 0
+#define EXSA_DCC_PIN        23   // PWM LEDC canal 0 → EN du DRV8874 via transistor
 
 /* --- ADC Télémétrie --- */
-#define EXSA_ADC_VPROPI      32   // ADC1_CH4 → courant via VPROPI (DRV8801)
-#define EXSA_ADC_VOLTAGE     33   // ADC1_CH5 → tension voie
+#define EXSA_ADC_IPROPI     32   // ADC1_CH4 → courant via IPROPI (DRV8874)
+#define EXSA_ADC_VOLTAGE    33   // ADC1_CH5 → tension voie
 
 /* --- ADC RailCom HF (dédié) --- */
-#define EXSA_ADC_RAILCOM     36   // ADC1_CH0 → RailCom HF (rapide)
+#define EXSA_ADC_RAILCOM    36   // ADC1_CH0 → RailCom HF (rapide)
 
 /* --- CAN Booster (natif ESP32) --- */
-#define EXSA_CAN_RX          4
-#define EXSA_CAN_TX          5
+#define EXSA_CAN_RX         4
+#define EXSA_CAN_TX         5
 
 /* --- LED d’erreur Booster --- */
-#define EXSA_LED_ERROR_PIN   16   // LED rouge (boot-safe)
+#define EXSA_LED_ERROR_PIN  16   // LED rouge (boot-safe)

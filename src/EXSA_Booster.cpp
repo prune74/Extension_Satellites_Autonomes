@@ -78,12 +78,12 @@ void EXSA_Booster::updateCutout()
 {
     if (EXSA_CanBooster::cutoutActive)
     {
-        EXSA_BoosterHw::enableCutout();
+        EXSA_BoosterHw::enableCutout();        // EN = 0 (PWM OFF)
         EXSA_BoosterRailCom::onCutoutStart();
     }
     else
     {
-        EXSA_BoosterHw::disableCutout();
+        EXSA_BoosterHw::disableCutout();       // EN = 255 (PWM ON)
         EXSA_BoosterRailCom::onCutoutEnd();
     }
 }
@@ -175,7 +175,7 @@ void EXSA_Booster::updateRailcom()
    checkSafety() — Sécurité voie Discovery 2026
    ------------------------------------------------------------
    Règles :
-     1) FAULT DRV8801 (hardware)
+     1) FAULT DRV8874 (hardware, nFAULT = LOW)
      2) Court-circuit local (courant > EXSA_BOOSTER_MAX_COURANT_mA)
      3) Tension anormale (tension < EXSA_BOOSTER_MIN_TENSION_mV)
      4) Défauts des autres boosters (globalFault / globalOverheat / globalOff)
@@ -184,7 +184,7 @@ void EXSA_Booster::updateRailcom()
    ============================================================ */
 void EXSA_Booster::checkSafety()
 {
-    // 1) Sécurité hardware DRV8801
+    // 1) Sécurité hardware DRV8874 (nFAULT = LOW)
     if (EXSA_BoosterHw::isFaultActive())
     {
         EXSA_BoosterHw::disableOutput();

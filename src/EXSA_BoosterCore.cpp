@@ -44,7 +44,7 @@ void EXSA_BoosterCore::taskEntry(void *param)
 
     EXSA_CanBooster::begin();
     EXSA_Booster::begin();
-    EXSA_BoosterRailCom::begin();   // <-- AJOUT RailCom
+    //EXSA_BoosterRailCom::begin();   // <-- AJOUT RailCom
 
     esp_task_wdt_add(nullptr);
 
